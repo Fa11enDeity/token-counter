@@ -6,14 +6,17 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping
+import time
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from .models import TokenBreakdown
 
 SAFE_ID = re.compile(r"[^A-Za-z0-9_.-]+")
+DEFAULT_STALE_AFTER_SECONDS = 30 * 24 * 60 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +42,20 @@ class StateStore:
     def _path(self, session_id: str) -> Path:
         safe_id = SAFE_ID.sub("_", session_id)
         return self.root / "sessions" / f"{safe_id}.json"
+
+    def _lock_path(self, session_id: str) -> Path:
+        return self._path(session_id).with_suffix(".lock")
+
+    @contextmanager
+    def locked(self, session_id: str) -> Iterator[None]:
+        lock_path = self._lock_path(session_id)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("a+b") as handle:
+            _lock_file(handle)
+            try:
+                yield
+            finally:
+                _unlock_file(handle)
 
     def load(self, session_id: str) -> SessionState:
         path = self._path(session_id)
@@ -79,3 +96,92 @@ class StateStore:
             temporary.replace(path)
         finally:
             temporary.unlink(missing_ok=True)
+
+    def cleanup_stale(
+        self,
+        *,
+        stale_after_seconds: int = DEFAULT_STALE_AFTER_SECONDS,
+        exclude_session_id: str | None = None,
+        now: float | None = None,
+    ) -> int:
+        sessions = self.root / "sessions"
+        cutoff = (time.time() if now is None else now) - stale_after_seconds
+        removed = 0
+        try:
+            paths = tuple(sessions.glob("*.json"))
+        except OSError:
+            return 0
+        excluded = self._path(exclude_session_id) if exclude_session_id else None
+        for path in paths:
+            if path == excluded:
+                continue
+            try:
+                if path.stat().st_mtime >= cutoff:
+                    continue
+                lock_path = path.with_suffix(".lock")
+                with lock_path.open("a+b") as handle:
+                    if not _try_lock_file(handle):
+                        continue
+                    try:
+                        path.unlink(missing_ok=True)
+                        removed += 1
+                    finally:
+                        _unlock_file(handle)
+            except OSError:
+                continue
+        return removed
+
+
+if os.name == "nt":
+    import msvcrt
+
+    def _prepare_windows_lock(handle: BinaryIO) -> None:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+
+    def _lock_file(handle: BinaryIO) -> None:
+        _prepare_windows_lock(handle)
+        msvcrt.locking(  # type: ignore[attr-defined]
+            handle.fileno(),
+            msvcrt.LK_LOCK,  # type: ignore[attr-defined]
+            1,
+        )
+
+    def _try_lock_file(handle: BinaryIO) -> bool:
+        _prepare_windows_lock(handle)
+        try:
+            msvcrt.locking(  # type: ignore[attr-defined]
+                handle.fileno(),
+                msvcrt.LK_NBLCK,  # type: ignore[attr-defined]
+                1,
+            )
+        except OSError:
+            return False
+        return True
+
+    def _unlock_file(handle: BinaryIO) -> None:
+        handle.seek(0)
+        msvcrt.locking(  # type: ignore[attr-defined]
+            handle.fileno(),
+            msvcrt.LK_UNLCK,  # type: ignore[attr-defined]
+            1,
+        )
+
+else:
+    import fcntl
+
+    def _lock_file(handle: BinaryIO) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+    def _try_lock_file(handle: BinaryIO) -> bool:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        return True
+
+    def _unlock_file(handle: BinaryIO) -> None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

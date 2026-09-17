@@ -2,7 +2,7 @@
 
 Token Counter for Codex is a planned Codex lifecycle-hook plugin that reports token usage, context-window usage, and model-adjusted credit consumption after every completed Codex turn.
 
-The repository now contains an alpha implementation with a validated plugin manifest, lifecycle hooks, local credit-rate accounting, automated tests, and a real-transcript smoke test. Server-estimated credits and installed-client UI verification remain in development.
+The repository now contains an alpha implementation with a validated plugin manifest, lifecycle hooks, local credit-rate accounting, process-safe state, automated tests, and a real-transcript smoke test. Installed-client UI verification remains in development.
 
 ## Project Goals
 
@@ -68,7 +68,7 @@ The hook runtime itself has no third-party Python dependencies. Pytest, Ruff, my
 The project distinguishes between two different concepts:
 
 - **Raw token usage:** measurable input, cached-input, output, and reasoning-output token counts reported by Codex.
-- **Credits:** usage calculated from the active model's credit rate, or preferably obtained from Codex's server-side thread usage estimate.
+- **Credits:** usage calculated from an explicit, versioned rate table for the active model and service tier.
 
 ChatGPT Plus and Pro included-usage limits are not a fixed token-to-credit conversion. Model selection, context size, reasoning, tool calls, caching, task duration, and service configuration can all affect those limits. The plugin will therefore display server-reported rate-limit windows when available instead of presenting a locally inferred value as exact.
 
@@ -93,15 +93,14 @@ Per-turn usage will be calculated as:
 turn usage = cumulative usage at Stop - cumulative usage at UserPromptSubmit
 ```
 
-State will be keyed by Codex session and turn identifiers and written atomically to the plugin data directory.
+State is keyed by Codex session and turn identifiers, protected by a per-session process lock, and written atomically to the plugin data directory.
 
 ### 3. Prefer structured Codex usage data
 
-The implementation will use the most stable available data source in this order:
+The implementation uses the most stable available data source in this order:
 
-1. Codex App Server token-usage and thread-usage data, when accessible to the hook.
-2. Version-tolerant parsing of the transcript referenced by the official hook payload.
-3. A graceful partial report when a field is unavailable.
+1. Version-tolerant parsing of the transcript referenced by the official hook payload.
+2. A graceful partial report when a field is unavailable.
 
 Codex currently exposes structured usage containing cumulative and latest token breakdowns plus the model context window. Transcript parsing will be isolated behind an adapter because the official documentation does not promise a stable transcript format.
 
@@ -115,11 +114,9 @@ remaining context = model context window - latest input tokens
 
 Values will be clamped at zero and clearly marked unavailable if the model context window is not reported. Compaction and model-switch events will cause the calculation to use the newest available values.
 
-### 5. Prefer server-estimated credits, with a local fallback
+### 5. Calculate credits from an explicit rate table
 
-When Codex provides a thread-level estimated credit value, the plugin will treat it as authoritative. This lets Codex account for the model, reasoning effort, speed tier, and current billing route.
-
-If that value is unavailable, the plugin will calculate credits from a versioned rate table:
+The current official [Codex App Server contract](https://learn.chatgpt.com/docs/app-server#7-token-usage-chatgpt) exposes account-level token activity but not per-thread estimated credits. The plugin therefore calculates credits from a versioned rate table:
 
 ```text
 credits =
@@ -175,7 +172,6 @@ token-counter/
 |       |-- cli.py                  # Hook process entry point
 |       |-- hook_input.py           # Hook payload validation
 |       |-- transcript.py           # Version-tolerant usage extraction
-|       |-- app_server.py           # Optional Codex App Server adapter
 |       |-- accounting.py           # Token and credit calculations
 |       |-- rates.py                # Model/rate resolution
 |       |-- state.py                # Per-session baseline and locking
@@ -202,7 +198,7 @@ token-counter/
 `-- .gitignore
 ```
 
-The exact structure may be adjusted if the first App Server integration spike shows that a small compiled helper is required. Such a change will be documented before implementation expands.
+The exact structure may be adjusted as the transcript adapter and installation workflow mature.
 
 ## Configuration Goals
 
@@ -213,7 +209,6 @@ Planned user configuration includes:
 - Choose exact numbers, abbreviated numbers, or both.
 - Include or exclude subagent usage where Codex exposes enough metadata.
 - Override or add model credit rates.
-- Choose whether server-estimated credits or local rates have precedence.
 - Configure behavior for unknown models and temporarily missing usage data.
 - Enable diagnostic logging without recording prompt or response content.
 
@@ -225,7 +220,7 @@ export TOKEN_COUNTER_RATES_PATH=/absolute/path/to/model_rates.json
 
 The replacement file uses the same schema as `config/model_rates.json`. Unknown models or speed tiers are reported with `n/a` credits rather than an inferred rate.
 
-The App Server thread-usage endpoint is intentionally not called on every turn in the alpha. The endpoint is experimental and can validly return no thread estimate for the current authentication or billing route. See `docs/architecture.md` for the recorded decision.
+The App Server is intentionally not launched from the hook because its documented account-usage endpoint does not provide per-thread credits. See `docs/architecture.md` for the recorded decision.
 
 ## Reliability and Compatibility Goals
 
@@ -269,7 +264,7 @@ The initial stable release is expected to include:
 1. An installable Codex plugin manifest and lifecycle-hook configuration.
 2. A cross-platform hook runner for the supported platforms.
 3. Accurate cumulative, per-turn, context-used, and context-remaining metrics.
-4. Server-estimated credit usage with a documented local-rate fallback.
+4. Traceable local credit usage from a versioned model-rate table.
 5. Configurable output formatting and model-rate overrides.
 6. Automated unit and integration tests.
 7. Local installation, upgrade, removal, and hook-trust instructions.
@@ -290,6 +285,6 @@ The initial stable release is expected to include:
 
 ## Current Status
 
-Alpha implementation. The transcript adapter, baseline fallback, local credit accounting, formatter, state store, plugin manifest, hook configuration, CI, and automated tests are implemented. The current local quality gate passes with 14 tests and at least 85% branch-aware coverage.
+Alpha implementation. The transcript adapter, baseline fallback, local credit accounting, formatter, process-safe state store, plugin manifest, hook configuration, CI, and automated tests are implemented. The current local quality gate passes with 19 tests and at least 85% branch-aware coverage.
 
-Before the first stable release, the project still needs server-estimated credit integration, an installation/reinstallation workflow, explicit runtime configuration, stale-state cleanup, and manual rendering verification in both Codex CLI and Codex Desktop.
+Before the first stable release, the project still needs an installation/reinstallation workflow, explicit runtime configuration, incremental transcript reading, and manual rendering verification in both Codex CLI and Codex Desktop.

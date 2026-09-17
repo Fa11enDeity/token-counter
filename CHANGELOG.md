@@ -16,4 +16,5 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Model-aware local credit calculations with cached-input rates.
 - Versioned official fallback rate table and custom rate-table override.
 - Atomic session state and duplicate `Stop` suppression.
+- Cross-process session locking, concurrent duplicate suppression, and stale-state cleanup.
 - Python 3.11+ package metadata, `uv` lock file, CI, linting, typing, and tests.

@@ -51,64 +51,67 @@ def process_hook(payload: HookPayload, store: StateStore) -> dict[str, object] |
     snapshot = _snapshot(payload)
 
     if payload.event_name == "UserPromptSubmit":
-        store.save(
-            payload.session_id,
-            SessionState(
-                turn_id=payload.turn_id,
-                baseline=snapshot.thread_usage if snapshot else None,
-            ),
-        )
+        store.cleanup_stale(exclude_session_id=payload.session_id)
+        with store.locked(payload.session_id):
+            store.save(
+                payload.session_id,
+                SessionState(
+                    turn_id=payload.turn_id,
+                    baseline=snapshot.thread_usage if snapshot else None,
+                ),
+            )
         return None
 
     if payload.event_name != "Stop" or snapshot is None:
         return None
 
-    state = store.load(payload.session_id)
-    if payload.turn_id is not None and state.reported_turn_id == payload.turn_id:
-        return None
+    with store.locked(payload.session_id):
+        state = store.load(payload.session_id)
+        if payload.turn_id is not None and state.reported_turn_id == payload.turn_id:
+            return None
 
-    turn_usage = _turn_usage(snapshot, state, payload.turn_id)
-    try:
-        rates = RateTable.load(default_rate_table_path())
-        thread_credits = rates.calculate_records(snapshot.records)
-        turn_credits = rates.calculate_records(
-            snapshot.records, turn_id=payload.turn_id
+        turn_usage = _turn_usage(snapshot, state, payload.turn_id)
+        try:
+            rates = RateTable.load(default_rate_table_path())
+            thread_credits = rates.calculate_records(snapshot.records)
+            turn_credits = rates.calculate_records(
+                snapshot.records, turn_id=payload.turn_id
+            )
+            if not snapshot.records:
+                thread_credits = CreditEstimate(
+                    credits=rates.calculate(
+                        snapshot.thread_usage or TokenBreakdown(),
+                        model=snapshot.model,
+                        service_tier=snapshot.service_tier,
+                    ),
+                    source="local-rate-table",
+                )
+                turn_credits = CreditEstimate(
+                    credits=rates.calculate(
+                        turn_usage or TokenBreakdown(),
+                        model=snapshot.model,
+                        service_tier=snapshot.service_tier,
+                    ),
+                    source="local-rate-table",
+                )
+        except (OSError, ValueError, KeyError, json.JSONDecodeError):
+            thread_credits = _empty_estimate()
+            turn_credits = _empty_estimate()
+
+        message = format_report(
+            snapshot,
+            turn_usage=turn_usage,
+            thread_credits=thread_credits,
+            turn_credits=turn_credits,
         )
-        if not snapshot.records:
-            thread_credits = CreditEstimate(
-                credits=rates.calculate(
-                    snapshot.thread_usage or TokenBreakdown(),
-                    model=snapshot.model,
-                    service_tier=snapshot.service_tier,
-                ),
-                source="local-rate-table",
-            )
-            turn_credits = CreditEstimate(
-                credits=rates.calculate(
-                    turn_usage or TokenBreakdown(),
-                    model=snapshot.model,
-                    service_tier=snapshot.service_tier,
-                ),
-                source="local-rate-table",
-            )
-    except (OSError, ValueError, KeyError, json.JSONDecodeError):
-        thread_credits = _empty_estimate()
-        turn_credits = _empty_estimate()
-
-    message = format_report(
-        snapshot,
-        turn_usage=turn_usage,
-        thread_credits=thread_credits,
-        turn_credits=turn_credits,
-    )
-    store.save(
-        payload.session_id,
-        SessionState(
-            turn_id=state.turn_id,
-            baseline=state.baseline,
-            reported_turn_id=payload.turn_id,
-        ),
-    )
+        store.save(
+            payload.session_id,
+            SessionState(
+                turn_id=state.turn_id,
+                baseline=state.baseline,
+                reported_turn_id=payload.turn_id,
+            ),
+        )
     return {"continue": True, "systemMessage": message, "suppressOutput": False}
 
 

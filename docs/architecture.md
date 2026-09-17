@@ -13,7 +13,7 @@ The hook process is short-lived. Persistent state contains only session and turn
 
 ## Data Sources
 
-The alpha implementation reads the transcript path supplied by the official hook payload. Transcript JSONL is not a stable public interface, so parsing is isolated in `transcript.py` and ignores unknown or malformed records.
+The alpha implementation reads the transcript path supplied by the [official hook payload](https://learn.chatgpt.com/docs/hooks#common-input-fields). Transcript JSONL is not a stable public interface, so parsing is isolated in `transcript.py` and ignores unknown or malformed records.
 
 The preferred records are:
 
@@ -44,12 +44,14 @@ Reasoning-output tokens are informational and are not added separately because t
 
 An exact model and speed-tier match is required. Unknown combinations produce `n/a` rather than borrowing a similar model's rate.
 
-## Server Usage Experiment
+## App Server Decision
 
-Codex App Server exposes experimental `account/usage/read` parameters that accept a thread ID and may return `estimatedUsageCreditsMicros`. A successful query against the development account returned `threadUsage: null`, which is valid when the current billing route does not expose an estimate. The alpha therefore does not launch App Server on every turn; doing so would add latency without guaranteeing a value.
+The current official [App Server contract](https://learn.chatgpt.com/docs/app-server#7-token-usage-chatgpt) defines `account/usage/read` as an account-level token-activity summary. It can return lifetime tokens, peak daily tokens, turn duration and streak fields, plus optional daily buckets. It does not accept a thread identifier or expose per-thread estimated credits in the documented contract.
 
-Server-estimated credits remain a planned optional source. Local rate accounting is required even after that integration is added.
+Token Counter therefore does not launch a second App Server process from a hook. Per-thread and per-turn credits use the local, versioned rate table. A future server adapter will be added only if OpenAI publishes a stable thread-credit field suitable for lifecycle hooks.
 
 ## Failure Behavior
 
 Hook failures are non-blocking. Invalid input, an unavailable transcript, an unknown record shape, an unwritable state directory, or an invalid rate table causes the hook to exit successfully without stopping the Codex turn. Unknown models affect only the credit value; raw token and context metrics remain available.
+
+State writes use atomic replacement and a per-session process lock. The lock makes duplicate `Stop` detection and the corresponding state update one operation, so concurrent delivery produces at most one report. On prompt submission, state files older than 30 days are removed; the current session and any state file whose lock is held are skipped.

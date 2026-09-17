@@ -16,7 +16,7 @@ Older transcripts without `token_usage_record.turn_token_usage` use the lifecycl
 
 ## Authentication and Billing
 
-Raw token and context accounting is local and independent of ChatGPT billing mode. Server-estimated thread credits may be unavailable depending on authentication and billing route. Local rate calculations remain available when the active model and speed tier have an exact configured rate.
+Raw token and context accounting is local and independent of ChatGPT billing mode. The documented App Server `account/usage/read` method currently exposes account-level token activity, not per-thread credits. Local rate calculations are therefore the only credit source and require an exact configured model and speed tier.
 
 Plus and Pro rate-limit windows are not inferred from raw tokens. They require a separate server-provided rate-limit value.
 

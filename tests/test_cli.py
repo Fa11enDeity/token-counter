@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from pathlib import Path
 
@@ -178,3 +179,58 @@ def test_missing_transcript_is_silent(tmp_path: Path, monkeypatch: object) -> No
     stdout = StringIO()
     assert main(StringIO(json.dumps(payload)), stdout) == 0
     assert stdout.getvalue() == ""
+
+
+def test_concurrent_duplicate_stop_emits_once(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    transcript = tmp_path / "rollout.jsonl"
+    transcript.write_text(
+        json.dumps(
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 90,
+                            "output_tokens": 10,
+                            "total_tokens": 100,
+                        },
+                        "last_token_usage": {
+                            "input_tokens": 90,
+                            "output_tokens": 10,
+                            "total_tokens": 100,
+                        },
+                        "model_context_window": 1000,
+                    },
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(  # type: ignore[attr-defined]
+        "TOKEN_COUNTER_DATA_DIR", str(tmp_path / "data")
+    )
+    payload = json.dumps(
+        {
+            "hook_event_name": "Stop",
+            "session_id": "concurrent-session",
+            "turn_id": "turn-1",
+            "transcript_path": str(transcript),
+            "model": "gpt-5.6-sol",
+        }
+    )
+
+    def invoke() -> str:
+        stdout = StringIO()
+        assert main(StringIO(payload), stdout) == 0
+        return stdout.getvalue()
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        outputs = list(executor.map(lambda _: invoke(), range(16)))
+
+    reports = [output for output in outputs if output]
+    assert len(reports) == 1
+    assert "Total: 100 tokens" in reports[0]
