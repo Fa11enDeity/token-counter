@@ -29,13 +29,13 @@ def format_report(
     lines = ["Token Counter"]
     if snapshot.thread_usage is not None:
         lines.append(
-            "Total: "
+            "• Total: "
             f"{_tokens(snapshot.thread_usage.total_tokens)} tokens | "
             f"{_credits(thread_credits.credits)} credits"
         )
     if turn_usage is not None:
         lines.append(
-            "Turn:  "
+            "• Turn: "
             f"{_tokens(turn_usage.total_tokens)} tokens | "
             f"{_credits(turn_credits.credits)} credits"
         )
@@ -44,14 +44,14 @@ def format_report(
         window = snapshot.model_context_window
         remaining = max(window - used, 0)
         percentage = Decimal(remaining * 100) / Decimal(window)
-        lines.append(f"Context: {_tokens(used)} / {_tokens(window)} tokens")
+        lines.append(f"• Context: {_tokens(used)} / {_tokens(window)} tokens")
         lines.append(
-            f"Remain:  {_tokens(remaining)} tokens | "
+            f"• Remaining: {_tokens(remaining)} tokens | "
             f"{percentage.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)}%"
         )
     model_parts = [part for part in (snapshot.model, snapshot.reasoning_effort) if part]
     if snapshot.service_tier:
         model_parts.append(snapshot.service_tier)
     if model_parts:
-        lines.append("Model: " + " | ".join(model_parts))
+        lines.append("• Model: " + " | ".join(model_parts))
     return "\n".join(lines)

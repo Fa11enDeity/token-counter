@@ -85,8 +85,8 @@ def test_stop_hook_emits_json(tmp_path: Path, monkeypatch: object) -> None:
     assert main(StringIO(json.dumps(payload)), stdout) == 0
     result = json.loads(stdout.getvalue())
     assert result["continue"] is True
-    assert "Total: 110 tokens" in result["systemMessage"]
-    assert "Context: 100 / 1,000 tokens" in result["systemMessage"]
+    assert "• Total: 110 tokens" in result["systemMessage"]
+    assert "• Context: 100 / 1,000 tokens" in result["systemMessage"]
 
     duplicate_stdout = StringIO()
     assert main(StringIO(json.dumps(payload)), duplicate_stdout) == 0
@@ -165,7 +165,7 @@ def test_prompt_baseline_is_used_when_turn_record_is_missing(
         == 0
     )
     result = json.loads(stop_stdout.getvalue())
-    assert "Turn:  50 tokens" in result["systemMessage"]
+    assert "• Turn: 50 tokens" in result["systemMessage"]
 
 
 def test_missing_transcript_is_silent(tmp_path: Path, monkeypatch: object) -> None:
@@ -330,4 +330,5 @@ def test_concurrent_duplicate_stop_emits_once(
 
     reports = [output for output in outputs if output]
     assert len(reports) == 1
-    assert "Total: 100 tokens" in reports[0]
+    result = json.loads(reports[0])
+    assert "• Total: 100 tokens" in result["systemMessage"]

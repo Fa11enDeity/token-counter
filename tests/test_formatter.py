@@ -22,7 +22,14 @@ def test_formats_complete_report() -> None:
         thread_credits=CreditEstimate(Decimal("1.234"), "test"),
         turn_credits=CreditEstimate(Decimal("0.056"), "test"),
     )
-    assert "Total: 10,000 tokens | 1.23 credits" in report
-    assert "Turn:  500 tokens | 0.06 credits" in report
-    assert "Remain:  250 tokens | 25.0%" in report
-    assert "Model: gpt-5.6-sol | high" in report
+    assert report == "\n".join(
+        [
+            "Token Counter",
+            "• Total: 10,000 tokens | 1.23 credits",
+            "• Turn: 500 tokens | 0.06 credits",
+            "• Context: 750 / 1,000 tokens",
+            "• Remaining: 250 tokens | 25.0%",
+            "• Model: gpt-5.6-sol | high",
+        ]
+    )
+    assert " ".join(report.splitlines()).count("•") == 5

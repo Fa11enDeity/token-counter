@@ -61,3 +61,7 @@ Hook failures are non-blocking. Invalid input, an unavailable transcript, an unk
 State writes use atomic replacement and a per-session process lock. The lock makes duplicate `Stop` detection and the corresponding state update one operation, so concurrent delivery produces at most one report. On prompt submission, state files older than 30 days are removed; the current session and any state file whose lock is held are skipped.
 
 Repeated `UserPromptSubmit` delivery for the same turn preserves the earliest baseline. An `Interrupt` clears a matching unfinished turn without erasing the last reported turn identifier. `SessionStart` with `resume` performs the same pending-state cleanup, while `compact` deliberately preserves the active baseline because compaction can occur in the middle of a turn. `startup` and `clear` reset the session state.
+
+## Output Rendering
+
+`Stop` returns a compact plain-text `systemMessage`. Each metric has both a newline and an explicit bullet separator because Codex clients are not documented to preserve whitespace or render Markdown in warning messages. The report therefore remains scannable when a client collapses line breaks into spaces.

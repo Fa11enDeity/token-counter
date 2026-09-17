@@ -19,11 +19,11 @@ An example result may look like this:
 
 ```text
 Token usage
-Total:   128,420 tokens | 18.73 credits
-Turn:     12,806 tokens |  2.14 credits
-Context:  81,390 / 272,000 tokens
-Remain:  190,610 tokens | 70.1%
-Model:   gpt-5.6-sol | high | standard
+• Total: 128,420 tokens | 18.73 credits
+• Turn: 12,806 tokens | 2.14 credits
+• Context: 81,390 / 272,000 tokens
+• Remaining: 190,610 tokens | 70.1%
+• Model: gpt-5.6-sol | high | standard
 ```
 
 The exact presentation may change during implementation as Codex CLI and Desktop rendering behavior is verified.
@@ -135,6 +135,8 @@ Rates are expressed per one million tokens. Reasoning tokens will not be counted
 ### 6. Display without polluting the model context
 
 The `Stop` hook will return the smallest Codex-supported UI/event message that reliably appears after a response. The implementation will avoid returning large model-visible context. CLI, Desktop, and non-interactive behavior will be tested separately because their rendering surfaces are not identical.
+
+Every metric line starts with an explicit bullet. Clients that preserve newlines render a vertical list; clients that collapse whitespace still retain visible separators between metrics. The formatter does not depend on Markdown rendering in `systemMessage`.
 
 ### 7. Keep processing local and privacy-preserving
 

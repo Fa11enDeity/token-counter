@@ -20,4 +20,5 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 - Resume, retry, compaction, and interruption-aware pending-state handling.
 - Bounded reverse transcript scanning for prompt-time baseline capture.
 - POSIX runtime resolution through a plugin environment, system Python, or uv.
+- Bullet-delimited Stop reports that remain readable when a client collapses line breaks.
 - Python 3.11+ package metadata, `uv` lock file, CI, linting, typing, and tests.
