@@ -1,0 +1,61 @@
+# Local development roadmap and work log
+/DEVELOPMENT_PROGRESS.md
+
+# Local Codex configuration and plugin runtime state
+/.codex/
+/.plugin-data/
+/state/
+/logs/
+*.local.json
+*.local.toml
+
+# Python virtual environments
+/.venv/
+/venv/
+/env/
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+
+# Test and coverage output
+.coverage
+.coverage.*
+/coverage.xml
+/htmlcov/
+/test-results/
+
+# Build and packaging output
+/build/
+/dist/
+/*.egg-info/
+*.egg
+
+# Generated protocol artifacts and temporary fixtures
+/generated/
+/schemas/generated/
+/tests/fixtures/local/
+/tmp/
+*.tmp
+*.log
+
+# Environment and secret files
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
