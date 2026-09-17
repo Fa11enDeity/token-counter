@@ -2,7 +2,7 @@
 
 Token Counter for Codex is a planned Codex lifecycle-hook plugin that reports token usage, context-window usage, and model-adjusted credit consumption after every completed Codex turn.
 
-This repository currently contains project planning only. No runtime dependencies or implementation code have been added yet.
+The repository now contains an alpha implementation with a validated plugin manifest, lifecycle hooks, local credit-rate accounting, automated tests, and a real-transcript smoke test. Server-estimated credits and installed-client UI verification remain in development.
 
 ## Project Goals
 
@@ -27,6 +27,41 @@ Model:   gpt-5.6-sol | high | standard
 ```
 
 The exact presentation may change during implementation as Codex CLI and Desktop rendering behavior is verified.
+
+## Current Alpha Capabilities
+
+- Reads official `UserPromptSubmit` and `Stop` hook payloads.
+- Uses `token_usage_record` for exact per-turn and cumulative usage when available.
+- Uses `event_msg.token_count` for the latest context size and context-window limit.
+- Falls back to a cumulative baseline when a transcript lacks per-turn records.
+- Calculates credits per model request, preserving correctness across model changes.
+- Distinguishes non-cached input, cached input, and output rates.
+- Supports the documented Astra Fast multiplier and refuses unknown multipliers.
+- Writes only small session baselines to the plugin data directory.
+- Suppresses duplicate reports for a repeated `Stop` event.
+- Fails open so a counter error does not prevent Codex from finishing a turn.
+
+## Development Setup
+
+The development environment uses Python 3.12 and `uv`:
+
+```bash
+uv python install 3.12
+uv python pin 3.12
+uv sync --locked --all-groups
+```
+
+Run the complete local quality gate:
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy src
+uv run pytest --cov=token_counter --cov-report=term-missing
+uv run python scripts/verify-plugin.py
+```
+
+The hook runtime itself has no third-party Python dependencies. Pytest, Ruff, mypy, coverage, Hatchling, and PyYAML are development-only dependencies.
 
 ## Product Boundaries
 
@@ -103,7 +138,7 @@ The `Stop` hook will return the smallest Codex-supported UI/event message that r
 
 The default implementation will not send prompts, replies, or transcripts to third-party services. It will read only the minimum local metadata needed for usage accounting. Optional Codex account queries will use the existing Codex authentication path rather than collecting or storing credentials.
 
-## Planned Development Environment
+## Development Environment
 
 ### Runtime
 
@@ -124,7 +159,7 @@ Python is planned because official Codex hook examples use command scripts, JSON
 - `mypy` for static type checking.
 - `pre-commit` as an optional contributor workflow.
 
-These tools are planned but have not been installed or configured yet.
+These tools are configured in `pyproject.toml` and locked in `uv.lock`.
 
 ## Planned Repository Structure
 
@@ -181,6 +216,16 @@ Planned user configuration includes:
 - Choose whether server-estimated credits or local rates have precedence.
 - Configure behavior for unknown models and temporarily missing usage data.
 - Enable diagnostic logging without recording prompt or response content.
+
+The alpha release already supports a complete replacement rate table through:
+
+```bash
+export TOKEN_COUNTER_RATES_PATH=/absolute/path/to/model_rates.json
+```
+
+The replacement file uses the same schema as `config/model_rates.json`. Unknown models or speed tiers are reported with `n/a` credits rather than an inferred rate.
+
+The App Server thread-usage endpoint is intentionally not called on every turn in the alpha. The endpoint is experimental and can validly return no thread estimate for the current authentication or billing route. See `docs/architecture.md` for the recorded decision.
 
 ## Reliability and Compatibility Goals
 
@@ -245,5 +290,6 @@ The initial stable release is expected to include:
 
 ## Current Status
 
-Planning and repository initialization. Implementation has not started, and no development environment has been installed by this project.
+Alpha implementation. The transcript adapter, baseline fallback, local credit accounting, formatter, state store, plugin manifest, hook configuration, CI, and automated tests are implemented. The current local quality gate passes with 14 tests and at least 85% branch-aware coverage.
 
+Before the first stable release, the project still needs server-estimated credit integration, an installation/reinstallation workflow, explicit runtime configuration, stale-state cleanup, and manual rendering verification in both Codex CLI and Codex Desktop.

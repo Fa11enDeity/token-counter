@@ -1,0 +1,30 @@
+{
+  "description": "Capture a turn baseline and report token usage when the turn stops.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/token-counter\"",
+            "commandWindows": "py -3 \"$env:PLUGIN_ROOT\\scripts\\token-counter\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$PLUGIN_ROOT/scripts/token-counter\"",
+            "commandWindows": "py -3 \"$env:PLUGIN_ROOT\\scripts\\token-counter\"",
+            "timeout": 5,
+            "statusMessage": "Calculating token usage"
+          }
+        ]
+      }
+    ]
+  }
+}

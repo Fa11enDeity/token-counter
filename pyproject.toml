@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codex-token-counter"
+version = "0.1.0"
+description = "Codex hook plugin for token, context, and credit usage reporting"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "FallenDeity", email = "fallendeityg@gmail.com" }]
+dependencies = []
+
+[project.scripts]
+token-counter = "token_counter.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.18",
+  "pyyaml>=6.0",
+  "pytest>=8.4",
+  "pytest-cov>=7.0",
+  "ruff>=0.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/token_counter"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"config/model_rates.json" = "token_counter/data/model_rates.json"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["token_counter"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["token_counter"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

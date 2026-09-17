@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "effective_date": "2026-09-17",
+  "unit": "credits_per_million_tokens",
+  "source": "https://learn.chatgpt.com/codex/pricing",
+  "models": {
+    "gpt-6-astra": {
+      "input": "250",
+      "cached_input": "25",
+      "output": "1250",
+      "aliases": [],
+      "speed_multipliers": {"fast": "2.5"}
+    },
+    "gpt-5.6-sol": {
+      "input": "100",
+      "cached_input": "10",
+      "output": "500",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "daybreak-blue": {
+      "input": "100",
+      "cached_input": "10",
+      "output": "500",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "daybreak-red": {
+      "input": "312.5",
+      "cached_input": "31.25",
+      "output": "1875",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "gpt-5.6-terra": {
+      "input": "50",
+      "cached_input": "5",
+      "output": "300",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "gpt-5.6-luna": {
+      "input": "5",
+      "cached_input": "0.5",
+      "output": "30",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "gpt-rosalind-research": {
+      "input": "125",
+      "cached_input": "12.5",
+      "output": "625",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "gpt-5.5": {
+      "input": "125",
+      "cached_input": "12.5",
+      "output": "750",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "gpt-5.4": {
+      "input": "62.5",
+      "cached_input": "6.25",
+      "output": "375",
+      "aliases": [],
+      "speed_multipliers": {}
+    },
+    "gpt-5.4-mini": {
+      "input": "18.75",
+      "cached_input": "1.875",
+      "output": "113",
+      "aliases": [],
+      "speed_multipliers": {}
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "token-counter",
+  "version": "0.1.0",
+  "description": "Show per-turn token, context, and model-adjusted credit usage in Codex.",
+  "author": {
+    "name": "FallenDeity",
+    "email": "fallendeityg@gmail.com",
+    "url": "https://github.com/Fa11enDeity"
+  },
+  "homepage": "https://github.com/Fa11enDeity/token-counter#readme",
+  "repository": "https://github.com/Fa11enDeity/token-counter",
+  "license": "MIT",
+  "keywords": ["codex", "hooks", "tokens", "usage", "credits"],
+  "interface": {
+    "displayName": "Token Counter",
+    "shortDescription": "Show token, context, and credit usage after each turn.",
+    "longDescription": "Reports cumulative and per-turn tokens, active context usage, remaining context, and locally calculated Codex credits.",
+    "developerName": "FallenDeity",
+    "category": "Productivity",
+    "capabilities": ["Lifecycle hooks", "Local usage accounting"],
+    "websiteURL": "https://github.com/Fa11enDeity/token-counter",
+    "defaultPrompt": [
+      "Show the token usage for this conversation."
+    ],
+    "brandColor": "#147D64"
+  }
+}
