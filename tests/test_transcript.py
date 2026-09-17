@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from token_counter.models import TokenBreakdown
-from token_counter.transcript import read_usage_snapshot
+from token_counter.transcript import read_latest_thread_usage, read_usage_snapshot
 
 
 def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
@@ -99,3 +99,44 @@ def test_skips_truncated_jsonl_line(tmp_path: Path) -> None:
     )
     snapshot = read_usage_snapshot(transcript, turn_id="turn-1")
     assert snapshot.thread_usage is None
+
+
+def test_reverse_scan_reads_latest_complete_cumulative_usage(tmp_path: Path) -> None:
+    transcript = tmp_path / "rollout.jsonl"
+    filler = {"type": "unrelated", "payload": {"value": "x" * 70_000}}
+    _write_jsonl(
+        transcript,
+        [
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 100,
+                            "total_tokens": 120,
+                        }
+                    },
+                },
+            },
+            filler,
+            {
+                "type": "token_usage_record",
+                "payload": {
+                    "thread_token_usage": {
+                        "input_tokens": 180,
+                        "output_tokens": 20,
+                        "total_tokens": 200,
+                    }
+                },
+            },
+        ],
+    )
+    with transcript.open("a", encoding="utf-8") as handle:
+        handle.write('{"type":"event_msg","payload":')
+
+    assert read_latest_thread_usage(transcript) == TokenBreakdown(
+        input_tokens=180,
+        output_tokens=20,
+        total_tokens=200,
+    )

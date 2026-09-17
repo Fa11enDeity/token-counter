@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# Resolve a supported Python without assuming the shell's python3 is recent enough.
+set -u
+
+plugin_root=${PLUGIN_ROOT:-"$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"}
+entrypoint="$plugin_root/scripts/token-counter"
+
+run_if_supported() {
+    candidate=$1
+    if [ ! -x "$candidate" ]; then
+        return 1
+    fi
+    if "$candidate" -c 'import sys; raise SystemExit(sys.version_info < (3, 11))'; then
+        exec "$candidate" "$entrypoint"
+    fi
+    return 1
+}
+
+run_if_supported "$plugin_root/.venv/bin/python"
+
+for command_name in python3 python; do
+    candidate=$(command -v "$command_name" 2>/dev/null || true)
+    if [ -n "$candidate" ]; then
+        run_if_supported "$candidate"
+    fi
+done
+
+uv_path=$(command -v uv 2>/dev/null || true)
+if [ -z "$uv_path" ] && [ -x "${HOME:-}/.local/bin/uv" ]; then
+    uv_path="${HOME}/.local/bin/uv"
+fi
+if [ -n "$uv_path" ]; then
+    exec "$uv_path" run --no-project --python '>=3.11' "$entrypoint"
+fi
+
+printf '%s\n' 'token-counter: Python 3.11+ or uv is required' >&2
+exit 0

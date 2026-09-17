@@ -4,6 +4,8 @@ from io import StringIO
 from pathlib import Path
 
 from token_counter.cli import main
+from token_counter.models import TokenBreakdown
+from token_counter.state import SessionState, StateStore
 
 
 def test_invalid_input_does_not_fail_hook() -> None:
@@ -179,6 +181,101 @@ def test_missing_transcript_is_silent(tmp_path: Path, monkeypatch: object) -> No
     stdout = StringIO()
     assert main(StringIO(json.dumps(payload)), stdout) == 0
     assert stdout.getvalue() == ""
+
+
+def test_duplicate_prompt_preserves_earliest_baseline(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    transcript = tmp_path / "rollout.jsonl"
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("TOKEN_COUNTER_DATA_DIR", str(data_dir))  # type: ignore[attr-defined]
+    common = {
+        "hook_event_name": "UserPromptSubmit",
+        "session_id": "retry-session",
+        "turn_id": "turn-1",
+        "transcript_path": str(transcript),
+        "model": "gpt-5.6-sol",
+    }
+
+    for total in (100, 140):
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "token_count",
+                        "info": {
+                            "total_token_usage": {
+                                "input_tokens": total,
+                                "total_tokens": total,
+                            }
+                        },
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        assert main(StringIO(json.dumps(common)), StringIO()) == 0
+
+    assert StateStore(data_dir).load("retry-session").baseline == TokenBreakdown(
+        input_tokens=100,
+        total_tokens=100,
+    )
+
+
+def test_interrupt_clears_only_matching_pending_turn(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("TOKEN_COUNTER_DATA_DIR", str(data_dir))  # type: ignore[attr-defined]
+    store = StateStore(data_dir)
+    store.save(
+        "session",
+        SessionState(
+            turn_id="turn-1",
+            baseline=TokenBreakdown(total_tokens=100),
+            reported_turn_id="turn-0",
+        ),
+    )
+
+    wrong_turn = {
+        "hook_event_name": "Interrupt",
+        "session_id": "session",
+        "turn_id": "other-turn",
+    }
+    assert main(StringIO(json.dumps(wrong_turn)), StringIO()) == 0
+    assert store.load("session").turn_id == "turn-1"
+
+    matching_turn = {**wrong_turn, "turn_id": "turn-1"}
+    assert main(StringIO(json.dumps(matching_turn)), StringIO()) == 0
+    assert store.load("session") == SessionState(reported_turn_id="turn-0")
+
+
+def test_resume_clears_pending_baseline_but_compact_preserves_it(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("TOKEN_COUNTER_DATA_DIR", str(data_dir))  # type: ignore[attr-defined]
+    store = StateStore(data_dir)
+    pending = SessionState(
+        turn_id="turn-1",
+        baseline=TokenBreakdown(total_tokens=100),
+        reported_turn_id="turn-0",
+    )
+    store.save("session", pending)
+
+    compact = {
+        "hook_event_name": "SessionStart",
+        "session_id": "session",
+        "source": "compact",
+    }
+    assert main(StringIO(json.dumps(compact)), StringIO()) == 0
+    assert store.load("session") == pending
+
+    resume = {**compact, "source": "resume"}
+    assert main(StringIO(json.dumps(resume)), StringIO()) == 0
+    assert store.load("session") == SessionState(reported_turn_id="turn-0")
 
 
 def test_concurrent_duplicate_stop_emits_once(

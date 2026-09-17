@@ -102,6 +102,7 @@ class HookPayload:
     turn_id: str | None
     transcript_path: str | None
     model: str | None
+    source: str | None = None
     stop_hook_active: bool = False
 
     @classmethod
@@ -117,6 +118,7 @@ class HookPayload:
         turn_id = value.get("turn_id")
         transcript_path = value.get("transcript_path")
         model = value.get("model")
+        source = value.get("source")
         return cls(
             event_name=event_name,
             session_id=session_id,
@@ -125,6 +127,7 @@ class HookPayload:
                 transcript_path if isinstance(transcript_path, str) else None
             ),
             model=model if isinstance(model, str) else None,
+            source=source if isinstance(source, str) else None,
             stop_hook_active=value.get("stop_hook_active") is True,
         )
 

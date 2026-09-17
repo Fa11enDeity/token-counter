@@ -30,7 +30,7 @@ The exact presentation may change during implementation as Codex CLI and Desktop
 
 ## Current Alpha Capabilities
 
-- Reads official `UserPromptSubmit` and `Stop` hook payloads.
+- Reads official `SessionStart`, `UserPromptSubmit`, `Stop`, and `Interrupt` hook payloads.
 - Uses `token_usage_record` for exact per-turn and cumulative usage when available.
 - Uses `event_msg.token_count` for the latest context size and context-window limit.
 - Falls back to a cumulative baseline when a transcript lacks per-turn records.
@@ -39,6 +39,9 @@ The exact presentation may change during implementation as Codex CLI and Desktop
 - Supports the documented Astra Fast multiplier and refuses unknown multipliers.
 - Writes only small session baselines to the plugin data directory.
 - Suppresses duplicate reports for a repeated `Stop` event.
+- Preserves the earliest baseline across duplicate prompts or retries and clears unfinished state on interruption or resume.
+- Uses a bounded reverse scan to capture the pre-turn cumulative baseline.
+- Resolves Python 3.11+ through a plugin virtual environment, the system, or uv on macOS/Linux.
 - Fails open so a counter error does not prevent Codex from finishing a turn.
 
 ## Development Setup
@@ -78,8 +81,10 @@ ChatGPT Plus and Pro included-usage limits are not a fixed token-to-credit conve
 
 The project will use a Codex plugin manifest and plugin-bundled lifecycle hooks. The initial hook configuration will register:
 
+- `SessionStart` to reconcile pending state after startup, resume, clear, or compaction.
 - `UserPromptSubmit` to capture the cumulative-usage baseline before a turn starts.
 - `Stop` to collect the final counters, calculate the turn delta, and display the report when Codex is about to finish the turn.
+- `Interrupt` to discard the interrupted turn's pending baseline.
 
 Plugin packaging keeps the hook installable across projects while still allowing project-local development and testing.
 
@@ -165,7 +170,7 @@ token-counter/
 |-- .codex-plugin/
 |   `-- plugin.json                 # Codex plugin manifest
 |-- hooks/
-|   `-- hooks.json                  # UserPromptSubmit and Stop hooks
+|   `-- hooks.json                  # Session, prompt, stop, and interrupt hooks
 |-- src/
 |   `-- token_counter/
 |       |-- __init__.py
@@ -285,6 +290,6 @@ The initial stable release is expected to include:
 
 ## Current Status
 
-Alpha implementation. The transcript adapter, baseline fallback, local credit accounting, formatter, process-safe state store, plugin manifest, hook configuration, CI, and automated tests are implemented. The current local quality gate passes with 19 tests and at least 85% branch-aware coverage.
+Alpha implementation. The transcript adapter, baseline fallback, local credit accounting, formatter, process-safe state store, interruption/resume handling, plugin manifest, hook configuration, runtime resolver, CI, and automated tests are implemented. The current local quality gate passes with 23 tests and at least 85% branch-aware coverage.
 
-Before the first stable release, the project still needs an installation/reinstallation workflow, explicit runtime configuration, incremental transcript reading, and manual rendering verification in both Codex CLI and Codex Desktop.
+Before the first stable release, the project still needs a reproducible installation/reinstallation helper, incremental credit aggregation for large transcripts, and manual lifecycle/rendering verification in both Codex CLI and Codex Desktop.

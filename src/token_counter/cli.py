@@ -11,7 +11,7 @@ from .formatter import format_report
 from .models import HookPayload, TokenBreakdown, UsageSnapshot
 from .rates import CreditEstimate, RateTable, default_rate_table_path
 from .state import SessionState, StateStore
-from .transcript import read_usage_snapshot
+from .transcript import read_latest_thread_usage, read_usage_snapshot
 
 
 def _empty_estimate() -> CreditEstimate:
@@ -48,19 +48,53 @@ def _turn_usage(
 
 
 def process_hook(payload: HookPayload, store: StateStore) -> dict[str, object] | None:
-    snapshot = _snapshot(payload)
+    if payload.event_name == "SessionStart":
+        store.cleanup_stale(exclude_session_id=payload.session_id)
+        if payload.source == "compact":
+            return None
+        with store.locked(payload.session_id):
+            state = store.load(payload.session_id)
+            if payload.source == "resume":
+                store.save(
+                    payload.session_id,
+                    SessionState(reported_turn_id=state.reported_turn_id),
+                )
+            else:
+                store.save(payload.session_id, SessionState())
+        return None
+
+    if payload.event_name == "Interrupt":
+        with store.locked(payload.session_id):
+            state = store.load(payload.session_id)
+            if payload.turn_id is None or state.turn_id == payload.turn_id:
+                store.save(
+                    payload.session_id,
+                    SessionState(reported_turn_id=state.reported_turn_id),
+                )
+        return None
 
     if payload.event_name == "UserPromptSubmit":
         store.cleanup_stale(exclude_session_id=payload.session_id)
         with store.locked(payload.session_id):
+            state = store.load(payload.session_id)
+            baseline = None
+            if payload.transcript_path is not None:
+                path = Path(payload.transcript_path)
+                if path.is_file():
+                    baseline = read_latest_thread_usage(path)
+            if state.turn_id == payload.turn_id and state.baseline is not None:
+                baseline = state.baseline
             store.save(
                 payload.session_id,
                 SessionState(
                     turn_id=payload.turn_id,
-                    baseline=snapshot.thread_usage if snapshot else None,
+                    baseline=baseline,
+                    reported_turn_id=state.reported_turn_id,
                 ),
             )
         return None
+
+    snapshot = _snapshot(payload)
 
     if payload.event_name != "Stop" or snapshot is None:
         return None

@@ -47,6 +47,61 @@ def iter_jsonl(path: Path) -> Iterator[Mapping[str, Any]]:
                 yield value
 
 
+def iter_jsonl_reverse(
+    path: Path, *, chunk_size: int = 64 * 1024
+) -> Iterator[Mapping[str, Any]]:
+    """Read complete JSONL records newest-first without loading the whole file."""
+    with path.open("rb") as handle:
+        handle.seek(0, 2)
+        position = handle.tell()
+        remainder = b""
+        while position > 0:
+            read_size = min(chunk_size, position)
+            position -= read_size
+            handle.seek(position)
+            block = handle.read(read_size) + remainder
+            lines = block.split(b"\n")
+            remainder = lines[0]
+            for line in reversed(lines[1:]):
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+                    continue
+                if isinstance(value, Mapping):
+                    yield value
+        if remainder:
+            try:
+                value = json.loads(remainder)
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+                return
+            if isinstance(value, Mapping):
+                yield value
+
+
+def read_latest_thread_usage(transcript_path: str | Path) -> TokenBreakdown | None:
+    """Return the newest cumulative usage record using a bounded reverse scan."""
+    for item in iter_jsonl_reverse(Path(transcript_path)):
+        payload = _mapping(item.get("payload"))
+        if item.get("type") == "token_usage_record" and payload is not None:
+            usage = TokenBreakdown.from_mapping(payload.get("thread_token_usage"))
+            if usage is not None:
+                return usage
+        if (
+            item.get("type") == "event_msg"
+            and payload is not None
+            and payload.get("type") == "token_count"
+        ):
+            info = _mapping(payload.get("info"))
+            if info is None:
+                continue
+            usage = TokenBreakdown.from_mapping(info.get("total_token_usage"))
+            if usage is not None:
+                return usage
+    return None
+
+
 def read_usage_snapshot(
     transcript_path: str | Path,
     *,

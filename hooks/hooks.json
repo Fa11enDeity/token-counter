@@ -1,12 +1,25 @@
 {
   "description": "Capture a turn baseline and report token usage when the turn stops.",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/scripts/run-token-counter\"",
+            "commandWindows": "py -3 \"$env:PLUGIN_ROOT\\scripts\\token-counter\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$PLUGIN_ROOT/scripts/token-counter\"",
+            "command": "\"$PLUGIN_ROOT/scripts/run-token-counter\"",
             "commandWindows": "py -3 \"$env:PLUGIN_ROOT\\scripts\\token-counter\"",
             "timeout": 5
           }
@@ -18,10 +31,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$PLUGIN_ROOT/scripts/token-counter\"",
+            "command": "\"$PLUGIN_ROOT/scripts/run-token-counter\"",
             "commandWindows": "py -3 \"$env:PLUGIN_ROOT\\scripts\\token-counter\"",
             "timeout": 5,
             "statusMessage": "Calculating token usage"
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/scripts/run-token-counter\"",
+            "commandWindows": "py -3 \"$env:PLUGIN_ROOT\\scripts\\token-counter\"",
+            "timeout": 3
           }
         ]
       }

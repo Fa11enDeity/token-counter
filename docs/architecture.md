@@ -2,11 +2,13 @@
 
 ## Lifecycle
 
-Token Counter runs as two Codex command hooks:
+Token Counter uses four Codex command hooks:
 
 ```text
 UserPromptSubmit -> capture cumulative baseline -> Codex turn runs
 Stop             -> read final usage -> calculate -> emit systemMessage
+Interrupt        -> discard the interrupted turn's pending baseline
+SessionStart     -> reconcile state after startup, resume, clear, or compaction
 ```
 
 The hook process is short-lived. Persistent state contains only session and turn identifiers, a token baseline, and the last reported turn identifier. Prompt and response text are never copied into state.
@@ -25,6 +27,8 @@ The preferred records are:
 - `turn_context`: model, reasoning effort, and service tier for a turn.
 
 When `turn_token_usage` is unavailable, the hook subtracts the baseline captured by `UserPromptSubmit` from the final cumulative thread usage.
+
+`UserPromptSubmit` finds that baseline with a bounded, reverse JSONL scan and stops at the newest complete cumulative record. `Stop` still scans the complete transcript because cumulative credits must preserve the model and speed tier of every request; a future cursor format can optimize that path only if it retains the same accounting guarantees.
 
 ## Credit Accounting
 
@@ -55,3 +59,5 @@ Token Counter therefore does not launch a second App Server process from a hook.
 Hook failures are non-blocking. Invalid input, an unavailable transcript, an unknown record shape, an unwritable state directory, or an invalid rate table causes the hook to exit successfully without stopping the Codex turn. Unknown models affect only the credit value; raw token and context metrics remain available.
 
 State writes use atomic replacement and a per-session process lock. The lock makes duplicate `Stop` detection and the corresponding state update one operation, so concurrent delivery produces at most one report. On prompt submission, state files older than 30 days are removed; the current session and any state file whose lock is held are skipped.
+
+Repeated `UserPromptSubmit` delivery for the same turn preserves the earliest baseline. An `Interrupt` clears a matching unfinished turn without erasing the last reported turn identifier. `SessionStart` with `resume` performs the same pending-state cleanup, while `compact` deliberately preserves the active baseline because compaction can occur in the middle of a turn. `startup` and `clear` reset the session state.
